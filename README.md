@@ -1,20 +1,26 @@
-# gleamtext
+# poreader
 
-[![Package Version](https://img.shields.io/hexpm/v/gleamtext)](https://hex.pm/packages/gleamtext)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gleamtext/)
+[![Package Version](https://img.shields.io/hexpm/v/poreader)](https://hex.pm/packages/poreader)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/poreader/)
 
 ```sh
-gleam add gleamtext@1
+gleam add poreader
 ```
+
 ```gleam
-import gleamtext
+import poreader
 
 pub fn main() {
-  // TODO: An example of the project in use
+  "#, fuzzy
+  msgid \"some id\"
+  msgstr \"some translation\"
+  "
+  |> poreader.parse()
+  // Ok([ Singular("some id", "some translation", None, [Flag("fuzzy")])]),
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/gleamtext>.
+Further documentation can be found at <https://hexdocs.pm/poreader>.
 
 ## Development
 
