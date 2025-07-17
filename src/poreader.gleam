@@ -1,11 +1,19 @@
+//// a parser for GNU gettext Portable Objects (.po) files
+
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order.{type Order}
 import gleam/result
 import gleam/string
 import nibble
 import nibble/lexer
+
+pub type ParseError {
+  LexerError(row: Int, col: Int, lexeme: String)
+  ParserError(List(String))
+}
 
 pub type Comment {
   Flag(String)
@@ -31,11 +39,116 @@ pub type Message {
   )
 }
 
-pub type Token {
+/// parses the given string into a list of messages
+///
+pub fn parse(content) -> Result(List(Message), ParseError) {
+  use tokens <- result.try(
+    lexer.run(content, po_lexer())
+    |> result.map_error(translate_lex_error),
+  )
+  use parsed <- result.try(
+    nibble.run(tokens, po_parser())
+    |> result.map_error(fn(error) {
+      ParserError(list.map(error, translate_parse_error))
+    }),
+  )
+  Ok(parsed)
+}
+
+fn translate_lex_error(error: lexer.Error) -> ParseError {
+  case error {
+    lexer.NoMatchFound(row:, col:, lexeme:) -> LexerError(row, col, lexeme)
+  }
+}
+
+fn translate_parse_error(dead_end: nibble.DeadEnd(Token, b)) -> String {
+  case dead_end.problem {
+    nibble.BadParser(str) -> "bad parser: " <> str
+    nibble.Custom(str) -> "custom: " <> str
+    nibble.EndOfInput -> "Unexpected end of input"
+    nibble.Expected(exp, token) ->
+      "Expected " <> exp <> " got: " <> to_string(token)
+    nibble.Unexpected(token) -> "Unexpected token " <> to_string(token)
+  }
+}
+
+/// returns true when the message is of type singular
+///
+pub fn is_singular(message: Message) -> Bool {
+  case message {
+    Singular(..) -> True
+    Plural(..) -> False
+  }
+}
+
+/// returns true when the message is of type plural
+///
+pub fn is_plural(message: Message) -> Bool {
+  case message {
+    Singular(..) -> False
+    Plural(..) -> True
+  }
+}
+
+/// returns the translation id of the message
+///
+pub fn get_id(message: Message) -> String {
+  case message {
+    Singular(msgid: msgid, ..) -> msgid
+    Plural(msgid: msgid, ..) -> msgid
+  }
+}
+
+/// returns the text of the message
+/// when given a plural message, the first translation is returned
+///
+pub fn get_text(message: Message) -> Option(String) {
+  case message {
+    Singular(msgstr: msgstr, ..) -> Some(msgstr)
+    Plural(msgstr: msgstr, ..) ->
+      dict.to_list(msgstr)
+      |> list.sort(by: tuple_compare)
+      |> list.first()
+      |> result.map(fn(el) { el.1 })
+      |> option.from_result()
+  }
+}
+
+/// returns the plural id of the message
+///
+pub fn get_plural_id(message: Message) -> Option(String) {
+  case message {
+    Singular(..) -> None
+    Plural(msgid_plural: msgid, ..) -> Some(msgid)
+  }
+}
+
+fn tuple_compare(a: #(Int, a), with b: #(Int, a)) -> Order {
+  case a.0 == b.0 {
+    True -> order.Eq
+    False ->
+      case a.0 < b.0 {
+        True -> order.Lt
+        False -> order.Gt
+      }
+  }
+}
+
+/// returns the plural translation of the message
+/// when given a singular message, the single translation is returned
+///
+pub fn get_plural_text(message: Message, idx: Int) -> Option(String) {
+  case message {
+    Singular(msgstr: msgstr, ..) -> Some(msgstr)
+    Plural(msgstr: msgstr, ..) -> dict.get(msgstr, idx) |> option.from_result()
+  }
+}
+
+// Lexer
+type Token {
   MsgId
   MsgIdPlural
   MsgStr
-  MsgStrPlural
   MsgCtx
   StringLiteral(String)
   CommentTranslator(String)
@@ -47,6 +160,25 @@ pub type Token {
   LeftBracket
   RightBracket
   Number(Int)
+}
+
+fn to_string(token: Token) -> String {
+  case token {
+    CommentExtracted(_) -> "#."
+    CommentFlag(_) -> "#,"
+    CommentPrevious(_) -> "#|"
+    CommentReference(_) -> "#:"
+    CommentTranslator(_) -> "# "
+    LeftBracket -> "["
+    MsgCtx -> "msgctx"
+    MsgId -> "msgid"
+    MsgIdPlural -> "msgid_plural"
+    MsgStr -> "msgstr"
+    Newline -> "\n"
+    Number(int) -> int.to_string(int)
+    RightBracket -> "]"
+    StringLiteral(str) -> str
+  }
 }
 
 fn po_lexer() {
@@ -75,6 +207,8 @@ fn po_lexer() {
       |> lexer.ignore,
   ])
 }
+
+// Parser
 
 fn blank_lines() {
   nibble.many1(nibble.token(Newline))
@@ -273,29 +407,4 @@ fn po_parser() {
   use _ <- nibble.do(nibble.eof())
 
   nibble.return(messages)
-}
-
-pub type ParseError {
-  LexerError(lexer.Error)
-  ParserError(List(nibble.DeadEnd(Token, Nil)))
-}
-
-pub fn parse(content) {
-  use tokens <- result.try(
-    lexer.run(content, po_lexer())
-    |> result.map_error(LexerError),
-  )
-  use parsed <- result.try(
-    nibble.run(tokens, po_parser())
-    |> result.map_error(ParserError),
-  )
-  Ok(parsed)
-}
-
-pub fn get_translation(message: Message, idx: Option(Int)) {
-  case message, idx {
-    Singular(msgstr: msgstr, ..), _ -> Ok(msgstr)
-    Plural(msgstr: msgstr, ..), Some(idx) -> dict.get(msgstr, idx)
-    _, None -> Error(Nil)
-  }
 }
