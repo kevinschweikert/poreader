@@ -144,6 +144,24 @@ pub fn get_plural_text(message: Message, idx: Int) -> Option(String) {
   }
 }
 
+/// returns the context of the message
+///
+pub fn get_context(message: Message) -> Option(String) {
+  case message {
+    Singular(msgctx: ctx, ..) -> ctx
+    Plural(msgctx: ctx, ..) -> ctx
+  }
+}
+
+/// returns the comments of the message
+///
+pub fn get_comments(message: Message) -> List(Comment) {
+  case message {
+    Singular(comments: comments, ..) -> comments
+    Plural(comments: comments, ..) -> comments
+  }
+}
+
 // Lexer
 type Token {
   MsgId

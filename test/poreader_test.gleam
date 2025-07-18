@@ -133,12 +133,95 @@ pub fn plural_message_test() {
   )
 }
 
-pub fn get_translation_test() {
+pub fn is_singular_test() {
+  Singular("", "", None, []) |> poreader.is_singular |> should.be_true()
+
+  Plural("", "", dict.from_list([]), None, [])
+  |> poreader.is_singular
+  |> should.be_false()
+}
+
+pub fn is_plural_test() {
+  Singular("", "", None, []) |> poreader.is_plural |> should.be_false()
+
+  Plural("", "", dict.from_list([]), None, [])
+  |> poreader.is_plural
+  |> should.be_true()
+}
+
+pub fn get_id_test() {
+  Singular("some id", "some translation", None, [])
+  |> poreader.get_id
+  |> should.equal("some id")
+
+  Plural("some id", "some plural id", dict.from_list([]), None, [])
+  |> poreader.get_id
+  |> should.equal("some id")
+}
+
+pub fn get_plural_id_test() {
+  Singular("some id", "some translation", None, [])
+  |> poreader.get_plural_id
+  |> should.be_none
+
+  Plural("some id", "some plural id", dict.from_list([]), None, [])
+  |> poreader.get_plural_id
+  |> should.be_some
+  |> should.equal("some plural id")
+}
+
+pub fn get_context_test() {
+  Singular("some id", "some translation", Some("context"), [])
+  |> poreader.get_context
+  |> should.be_some
+  |> should.equal("context")
+
+  Plural("some id", "some plural id", dict.from_list([]), Some("context"), [])
+  |> poreader.get_context
+  |> should.be_some
+  |> should.equal("context")
+}
+
+pub fn get_comments_test() {
+  Singular("some id", "some translation", Some("context"), [
+    Flag("fuzzy"),
+    Reference("myfile", Some(3)),
+  ])
+  |> poreader.get_comments
+  |> should.equal([Flag("fuzzy"), Reference("myfile", Some(3))])
+
+  Plural("some id", "some plural id", dict.from_list([]), Some("context"), [
+    Translator("wibble"),
+    Extracted("wobble"),
+  ])
+  |> poreader.get_comments
+  |> should.equal([Translator("wibble"), Extracted("wobble")])
+}
+
+pub fn get_text_test() {
   Singular("message id", "translation", Some("some context"), [])
-  |> poreader.get_translation(None)
-  |> should.equal(Ok("translation"))
+  |> poreader.get_text()
+  |> should.equal(Some("translation"))
 
   Plural("one", "more", dict.from_list([#(0, "eins"), #(1, "mehr")]), None, [])
-  |> poreader.get_translation(Some(1))
-  |> should.equal(Ok("mehr"))
+  |> poreader.get_text()
+  |> should.equal(Some("eins"))
+
+  Plural("one", "more", dict.from_list([]), None, [])
+  |> poreader.get_text()
+  |> should.equal(None)
+}
+
+pub fn get_plural_text_test() {
+  Singular("message id", "translation", Some("some context"), [])
+  |> poreader.get_plural_text(0)
+  |> should.equal(Some("translation"))
+
+  Plural("one", "more", dict.from_list([#(0, "eins"), #(1, "mehr")]), None, [])
+  |> poreader.get_plural_text(1)
+  |> should.equal(Some("mehr"))
+
+  Plural("one", "more", dict.from_list([]), None, [])
+  |> poreader.get_plural_text(1)
+  |> should.equal(None)
 }
