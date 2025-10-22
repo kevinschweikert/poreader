@@ -39,9 +39,17 @@ pub type Message {
   )
 }
 
+fn ensure_trailing_newline(s: String) -> String {
+  case string.ends_with(s, "\n") || string.ends_with(s, "\r\n") {
+    True -> s
+    False -> s <> "\n"
+  }
+}
+
 /// parses the given string into a list of messages
 ///
 pub fn parse(content) -> Result(List(Message), ParseError) {
+  let content = ensure_trailing_newline(content)
   use tokens <- result.try(
     lexer.run(content, po_lexer())
     |> result.map_error(translate_lex_error),
@@ -246,7 +254,7 @@ fn multiline_string_parser() {
   use parts <- nibble.do(
     nibble.many1(fn() {
       use part <- nibble.do(string_literal_parser())
-      use _ <- nibble.do(nibble.token(Newline))
+      use _ <- nibble.do(nibble.optional(nibble.token(Newline)))
       nibble.return(part)
     }()),
   )
